@@ -38,6 +38,8 @@ pip install -r requirements.txt
 playwright install
 ```
 
+---
+
 ## Instalar y arrancar Tor (Debian/Ubuntu)
 
 ```bash
@@ -50,6 +52,8 @@ Verifica que el SOCKS está activo (normalmente 9050):
 ```bash
 ss -lntp | grep 9050
 ```
+
+---
 
 ## Uso
 
@@ -73,6 +77,8 @@ El dashboard queda en:
 
 http://127.0.0.1:8000
 
+---
+
 ## Configuración de Tor
 
 El scraper usa SOCKS5 para acceder a .onion.
@@ -82,6 +88,8 @@ Tor system: 127.0.0.1:9050 (común)
 Tor Browser: 127.0.0.1:9150
 
 Si usas Tor Browser, cambia el puerto en el código o integra .env.
+
+---
 
 ## Datos y rutas
 
@@ -97,6 +105,7 @@ Asegúrate de usar SOCKS con resolución remota (socks5h) en requests y que Tor 
 2) Playwright falla en VM por librerías del sistema
 
 En Ubuntu/Debian prueba:
+
 ```bash
 sudo apt-get update
 sudo apt-get install -y libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
