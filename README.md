@@ -36,3 +36,39 @@ pip install -U pip
 pip install -r requirements.txt
 
 playwright install
+```
+
+## Instalar y arrancar Tor (Debian/Ubuntu)
+
+```bash
+sudo apt update
+sudo apt install -y tor
+sudo systemctl enable --now tor
+```
+
+Verifica que el SOCKS está activo (normalmente 9050):
+```bash
+ss -lntp | grep 9050
+```
+
+## Uso
+
+Ejecuta el programa:
+```bash
+source .venv/bin/activate
+python3 main.py
+```
+
+En el menú:
+
+[1] Escanear: pega una o más URLs .onion (una por línea) y Enter vacío para terminar.
+
+[2] Abrir dashboard: inicia el dashboard y abre el navegador automáticamente (si hay GUI).
+
+[3] Escanear + dashboard
+
+[4] Gestión DB (borrar): elimina URLs por ID(s) de forma segura.
+
+El dashboard queda en:
+
+http://127.0.0.1:8000
