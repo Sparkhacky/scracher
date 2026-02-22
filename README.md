@@ -88,3 +88,18 @@ Si usas Tor Browser, cambia el puerto en el código o integra .env.
 DB (SQLite): data/scrs.db
 
 Screenshots: dashboard/static/screenshots/
+
+## Troubleshooting
+1) .onion no responde / “Name or service not known”
+
+Asegúrate de usar SOCKS con resolución remota (socks5h) en requests y que Tor esté activo.
+
+2) Playwright falla en VM por librerías del sistema
+
+En Ubuntu/Debian prueba:
+```bash
+sudo apt-get update
+sudo apt-get install -y libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
+  libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 \
+  libpango-1.0-0 libcairo2 libasound2
+```
