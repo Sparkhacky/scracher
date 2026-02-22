@@ -72,3 +72,19 @@ En el menú:
 El dashboard queda en:
 
 http://127.0.0.1:8000
+
+## Configuración de Tor
+
+El scraper usa SOCKS5 para acceder a .onion.
+
+Tor system: 127.0.0.1:9050 (común)
+
+Tor Browser: 127.0.0.1:9150
+
+Si usas Tor Browser, cambia el puerto en el código o integra .env.
+
+## Datos y rutas
+
+DB (SQLite): data/scrs.db
+
+Screenshots: dashboard/static/screenshots/
