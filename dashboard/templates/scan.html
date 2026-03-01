@@ -1,0 +1,223 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="max-w-4xl mx-auto">
+
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-xl font-black text-cyan-400 tracking-wider">⚡ ESCANEAR</h1>
+  <div id="scan-status" class="text-xs text-slate-500">Listo</div>
+</div>
+
+<!-- Input form -->
+<div class="card p-6 mb-6">
+  <div class="mb-4">
+    <label class="text-xs text-slate-400 uppercase tracking-wider mb-2 block">URLs .onion — una por línea</label>
+    <textarea id="urls-input" rows="8" placeholder="http://ejemplo.onion&#10;http://otro.onion"
+      class="w-full font-mono text-sm" style="resize:vertical;"></textarea>
+  </div>
+  <div class="flex items-center gap-4">
+    <label class="flex items-center gap-2 text-sm cursor-pointer">
+      <input type="checkbox" id="use-ti" class="w-4 h-4 accent-cyan-500"/>
+      <span class="text-slate-300">VirusTotal + URLhaus</span>
+      <span class="text-slate-500 text-xs">(más lento)</span>
+    </label>
+    <div class="ml-auto flex gap-3">
+      <button onclick="startScan()" class="btn btn-cyan">▶ Iniciar escaneo</button>
+      <button onclick="clearResults()" class="btn btn-gray">Limpiar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Discovered links quick-crawl -->
+<div class="card p-4 mb-6 flex items-center justify-between">
+  <div>
+    <div class="text-sm font-semibold text-slate-300">Links descubiertos pendientes</div>
+    <div class="text-xs text-slate-500 mt-0.5">{{ stats.pending_links }} sin escanear de {{ stats.total_links }} totales</div>
+  </div>
+  <div class="flex items-center gap-2">
+    <input id="crawl-limit" type="number" value="50" min="1" max="500" style="width:70px;" class="text-center"/>
+    <button onclick="crawlDiscovered()" class="btn btn-green">⬡ Crawlear</button>
+  </div>
+</div>
+
+<!-- Progress bar -->
+<div id="progress-wrap" class="hidden mb-4">
+  <div class="flex justify-between text-xs text-slate-400 mb-1">
+    <span id="progress-label">Escaneando...</span>
+    <span id="progress-pct">0%</span>
+  </div>
+  <div class="w-full bg-slate-800 rounded-full h-2">
+    <div id="progress-bar" class="bg-cyan-500 h-2 rounded-full transition-all duration-300" style="width:0%"></div>
+  </div>
+</div>
+
+<!-- Results table -->
+<div id="results-wrap" class="hidden">
+  <div class="flex items-center justify-between mb-3">
+    <div class="text-xs text-slate-500 uppercase tracking-wider">Resultados</div>
+    <div id="results-summary" class="text-xs"></div>
+  </div>
+  <div class="card overflow-x-auto">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th><th>URL</th><th>Riesgo</th><th>Score</th>
+          <th>KWD</th><th>Tech</th><th>Links</th><th>Wallets</th><th>Tiempo</th><th></th>
+        </tr>
+      </thead>
+      <tbody id="results-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Session complete banner -->
+<div id="done-banner" class="hidden card p-5 mt-4 text-center">
+  <div class="text-2xl mb-2">✅</div>
+  <div class="font-bold text-green-400" id="done-text"></div>
+  <a href="/" class="btn btn-cyan mt-3">Ver resultados en el dashboard</a>
+</div>
+
+</div>
+
+<script>
+const RISK_COLORS = {
+  critical:'text-red-400', high:'text-yellow-400', medium:'text-yellow-600',
+  low:'text-green-400', clean:'text-slate-500', unknown:'text-slate-500'
+};
+const RISK_ICONS = {
+  critical:'◈', high:'◆', medium:'◇', low:'○', clean:'·', unknown:'?'
+};
+
+let evtSource = null;
+let scanRunning = false;
+
+function startScan(){
+  if(scanRunning){ alert('Ya hay un escaneo en curso'); return; }
+  const urls = document.getElementById('urls-input').value.trim();
+  if(!urls){ alert('Introduce al menos una URL'); return; }
+  clearResults(false);
+  document.getElementById('progress-wrap').classList.remove('hidden');
+  document.getElementById('results-wrap').classList.remove('hidden');
+  document.getElementById('done-banner').classList.add('hidden');
+  document.getElementById('scan-status').textContent = 'Escaneando...';
+  document.getElementById('scan-status').className = 'text-xs text-cyan-400 animate-pulse';
+  scanRunning = true;
+
+  fetch('/scan/start', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      urls: urls,
+      threat_intel: document.getElementById('use-ti').checked
+    })
+  }).then(r => r.json()).then(d => {
+    if(d.error){ alert(d.error); scanRunning=false; return; }
+    listenStream();
+  });
+}
+
+function listenStream(){
+  evtSource = new EventSource('/scan/stream');
+
+  evtSource.addEventListener('start', e => {
+    const d = JSON.parse(e.data);
+    document.getElementById('progress-label').textContent = `Escaneando 0/${d.total}...`;
+  });
+
+  evtSource.addEventListener('progress', e => {
+    const d = JSON.parse(e.data);
+    const pct = Math.round((d.i-1)/d.total*100);
+    document.getElementById('progress-bar').style.width = pct+'%';
+    document.getElementById('progress-pct').textContent = pct+'%';
+    document.getElementById('progress-label').textContent =
+      `[${d.i}/${d.total}] ${d.url.replace('http://','').substring(0,60)}...`;
+  });
+
+  evtSource.addEventListener('result', e => {
+    const d = JSON.parse(e.data);
+    const tbody = document.getElementById('results-body');
+    const rl = d.risk_level || 'unknown';
+    const rc = RISK_COLORS[rl] || 'text-slate-400';
+    const ri = RISK_ICONS[rl] || '?';
+    const pct = Math.round(d.i/d.total*100);
+    document.getElementById('progress-bar').style.width = pct+'%';
+    document.getElementById('progress-pct').textContent = pct+'%';
+
+    const tr = document.createElement('tr');
+    if(d.status === 'ok'){
+      tr.innerHTML = `
+        <td class="text-slate-500">${d.i}</td>
+        <td class="font-mono max-w-xs truncate" style="max-width:220px;" title="${d.url}">
+          ${(d.domain||d.url.replace('http://','').substring(0,35))}
+          ${d.title ? '<div class="text-slate-500 text-xs truncate">'+d.title.substring(0,40)+'</div>' : ''}
+        </td>
+        <td><span class="${rc} font-bold">${ri} ${rl.toUpperCase()}</span></td>
+        <td class="${rc} font-mono">${(d.risk_score||0).toFixed(2)}</td>
+        <td class="${d.keywords>=5?'text-red-400':d.keywords>0?'text-yellow-400':'text-slate-500'}">${d.keywords}</td>
+        <td class="text-cyan-400">${d.tech}</td>
+        <td class="text-blue-400">${d.links}</td>
+        <td class="text-yellow-400">${d.wallets}</td>
+        <td class="text-slate-500 font-mono">${d.elapsed}s</td>
+        <td><a href="/shop/${d.shop_id}" class="text-cyan-400 hover:underline text-xs">→</a></td>`;
+    } else {
+      tr.innerHTML = `
+        <td class="text-slate-500">${d.i}</td>
+        <td class="font-mono text-slate-500 max-w-xs truncate" colspan="7" title="${d.url}">${d.url.substring(0,50)} — <span class="text-red-400">${d.error||'error'}</span></td>
+        <td class="text-slate-500 font-mono">${d.elapsed}s</td>
+        <td></td>`;
+    }
+    tbody.insertBefore(tr, tbody.firstChild);
+  });
+
+  evtSource.addEventListener('done', e => {
+    const d = JSON.parse(e.data);
+    evtSource.close(); scanRunning = false;
+    document.getElementById('progress-bar').style.width = '100%';
+    document.getElementById('progress-pct').textContent = '100%';
+    document.getElementById('scan-status').textContent = 'Completado';
+    document.getElementById('scan-status').className = 'text-xs text-green-400';
+    document.getElementById('done-banner').classList.remove('hidden');
+    document.getElementById('done-text').textContent =
+      `✓ ${d.ok} ok  ✗ ${d.fail} fallos  ⬡ ${d.links} links  ₿ ${d.wallets} wallets  ${d.elapsed}s`;
+  });
+
+  evtSource.addEventListener('error', e => {
+    evtSource.close(); scanRunning = false;
+    document.getElementById('scan-status').textContent = 'Error';
+    document.getElementById('scan-status').className = 'text-xs text-red-400';
+  });
+}
+
+function crawlDiscovered(){
+  if(scanRunning){ alert('Ya hay un escaneo en curso'); return; }
+  const limit = parseInt(document.getElementById('crawl-limit').value) || 50;
+  clearResults(false);
+  document.getElementById('progress-wrap').classList.remove('hidden');
+  document.getElementById('results-wrap').classList.remove('hidden');
+  document.getElementById('scan-status').textContent = 'Crawleando...';
+  document.getElementById('scan-status').className = 'text-xs text-cyan-400 animate-pulse';
+  scanRunning = true;
+  fetch('/scan/crawl', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({limit})
+  }).then(r => r.json()).then(d => {
+    if(d.error){ alert(d.error); scanRunning=false; return; }
+    listenStream();
+  });
+}
+
+function clearResults(clearInput=true){
+  if(clearInput) document.getElementById('urls-input').value='';
+  document.getElementById('results-body').innerHTML='';
+  document.getElementById('progress-bar').style.width='0%';
+  document.getElementById('progress-pct').textContent='0%';
+  document.getElementById('progress-wrap').classList.add('hidden');
+  document.getElementById('results-wrap').classList.add('hidden');
+  document.getElementById('done-banner').classList.add('hidden');
+  document.getElementById('scan-status').textContent='Listo';
+  document.getElementById('scan-status').className='text-xs text-slate-500';
+  if(evtSource){ evtSource.close(); evtSource=null; }
+  scanRunning=false;
+}
+</script>
+{% endblock %}

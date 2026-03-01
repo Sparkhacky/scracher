@@ -1,0 +1,91 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-xl font-black text-cyan-400 tracking-wider">🗄 GESTIÓN DB</h1>
+  <div class="flex gap-2">
+    <button onclick="deleteSelected()" class="btn btn-red">🗑 Eliminar seleccionados</button>
+    <button onclick="deleteErrors()" class="btn btn-gray">Limpiar errores</button>
+  </div>
+</div>
+
+<!-- Filters -->
+<form class="flex gap-2 mb-4 flex-wrap">
+  <input name="q" value="{{ q }}" placeholder="Buscar URL / dominio / título..." class="flex-1 min-w-48"/>
+  <select name="risk">
+    <option value="">— Riesgo —</option>
+    {% for v,l in [('critical','🔴 Critical'),('high','🟠 High'),('medium','🟡 Medium'),('low','🟢 Low'),('clean','⚪ Clean')] %}
+    <option value="{{ v }}" {% if risk==v %}selected{% endif %}>{{ l }}</option>
+    {% endfor %}
+  </select>
+  <button class="btn btn-cyan">Filtrar</button>
+  {% if q or risk %}<a href="/manage" class="btn btn-gray">Limpiar</a>{% endif %}
+</form>
+
+<!-- Stats rápidas -->
+<div class="flex gap-3 mb-4 text-xs text-slate-400">
+  <span>{{ stats.total }} sitios totales</span>
+  <span class="text-red-400">{{ stats.critical }} critical</span>
+  <span class="text-yellow-400">{{ stats.high }} high</span>
+  <span class="text-slate-500">{{ stats.errors }} errores</span>
+</div>
+
+<div class="card overflow-x-auto">
+  <table>
+    <thead>
+      <tr>
+        <th><input type="checkbox" id="check-all" onclick="toggleAll()" class="w-4 h-4"/></th>
+        <th>ID</th><th>Dominio</th><th>Título</th><th>Riesgo</th>
+        <th>Score</th><th>Estado</th><th>Escaneos</th><th>Fecha</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for s in shops %}
+    <tr>
+      <td><input type="checkbox" class="row-check w-4 h-4" value="{{ s['id'] }}"/></td>
+      <td class="text-slate-500 text-xs">{{ s['id'] }}</td>
+      <td class="font-mono text-xs max-w-xs truncate" style="max-width:180px;" title="{{ s['url'] }}">{{ s['domain'] or s['url'] }}</td>
+      <td class="text-sm max-w-xs truncate" style="max-width:160px;">{{ s['title'] or '—' }}</td>
+      <td><span class="badge risk-{{ s['risk_level'] or 'unknown' }}">{{ (s['risk_level'] or '?').upper() }}</span></td>
+      <td class="font-mono text-xs {% if s['risk_score']>=0.7 %}text-red-400{% elif s['risk_score']>=0.3 %}text-yellow-400{% else %}text-green-400{% endif %}">{{ '%.2f'|format(s['risk_score'] or 0) }}</td>
+      <td><span class="text-xs {% if s['status']=='ok' %}text-green-400{% else %}text-red-400{% endif %}">{{ s['status'] }}</span></td>
+      <td class="text-slate-400 text-xs">{{ s['scan_count'] or 1 }}</td>
+      <td class="text-slate-500 text-xs">{{ (s['detected_at'] or '')[:10] }}</td>
+      <td class="flex gap-2">
+        <a href="/shop/{{ s['id'] }}" class="text-cyan-400 hover:underline text-xs">Ver</a>
+        <button onclick="deleteSingle({{ s['id'] }})" class="text-red-400 hover:underline text-xs">Del</button>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if not shops %}<div class="text-center text-slate-500 py-16">Sin resultados.</div>{% endif %}
+
+<script>
+function toggleAll(){
+  const all = document.getElementById('check-all').checked;
+  document.querySelectorAll('.row-check').forEach(c => c.checked=all);
+}
+function getSelected(){
+  return [...document.querySelectorAll('.row-check:checked')].map(c=>parseInt(c.value));
+}
+function deleteSelected(){
+  const ids = getSelected();
+  if(!ids.length){ alert('Selecciona al menos un sitio'); return; }
+  if(!confirm(`¿Eliminar ${ids.length} sitio(s)?`)) return;
+  fetch('/api/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids})})
+    .then(r=>r.json()).then(d=>{ alert(`Eliminados: ${d.deleted}`); location.reload(); });
+}
+function deleteSingle(id){
+  if(!confirm('¿Eliminar este sitio?')) return;
+  fetch('/api/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids:[id]})})
+    .then(()=>location.reload());
+}
+function deleteErrors(){
+  if(!confirm('¿Eliminar todos los registros con error?')) return;
+  fetch('/api/delete/errors',{method:'POST'}).then(()=>location.reload());
+}
+</script>
+{% endblock %}
