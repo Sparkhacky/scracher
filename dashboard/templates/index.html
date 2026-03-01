@@ -1,52 +1,80 @@
 {% extends "layout.html" %}
 {% block content %}
 
-<form class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
-  <input name="q" value="{{ q }}" placeholder="Buscar por URL, dominio o título..."
-    class="bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 outline-none"/>
+{% if stats.top_threats %}
+<div class="mb-5">
+  <div class="text-xs text-slate-500 mb-2 uppercase tracking-wide">Top amenazas detectadas</div>
+  <div class="flex gap-2 flex-wrap">
+    {% for t in stats.top_threats %}
+    <span class="bg-slate-800 border border-slate-700 rounded-full px-3 py-1 text-xs">
+      {{ t.category }} <span class="text-cyan-400 font-bold">{{ t.c }}</span>
+    </span>
+    {% endfor %}
+    {% for c in stats.top_coins %}
+    <span class="bg-slate-800 border border-yellow-900 rounded-full px-3 py-1 text-xs">
+      ₿ {{ c.coin }} <span class="text-yellow-400 font-bold">{{ c.c }}</span>
+    </span>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
 
-  <select name="tech" class="bg-slate-900 border border-slate-700 rounded-xl px-4 py-2">
+<form class="grid grid-cols-2 md:grid-cols-6 gap-2 mb-6">
+  <input name="q" value="{{ q }}" placeholder="URL / dominio / título..."
+    class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 outline-none col-span-2"/>
+  <select name="risk" class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2">
+    <option value="">— Riesgo local —</option>
+    <option value="critical" {% if risk=='critical' %}selected{% endif %}>🔴 Critical</option>
+    <option value="high"     {% if risk=='high'     %}selected{% endif %}>🟠 High</option>
+    <option value="medium"   {% if risk=='medium'   %}selected{% endif %}>🟡 Medium</option>
+    <option value="low"      {% if risk=='low'       %}selected{% endif %}>🟢 Low</option>
+    <option value="clean"    {% if risk=='clean'    %}selected{% endif %}>⚪ Clean</option>
+  </select>
+  <select name="ext_risk" class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2">
+    <option value="">— Riesgo externo —</option>
+    <option value="malicious"  {% if ext_risk=='malicious'  %}selected{% endif %}>🔴 Malicious</option>
+    <option value="suspicious" {% if ext_risk=='suspicious' %}selected{% endif %}>🟠 Suspicious</option>
+    <option value="clean"      {% if ext_risk=='clean'      %}selected{% endif %}>⚪ Clean</option>
+  </select>
+  <select name="tech" class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2">
     <option value="">— Tecnología —</option>
     {% for t in techs %}
-      <option value="{{ t['name'] }}" {% if tech==t['name'] %}selected{% endif %}>
-        {{ t['name'] }} ({{ t['c'] }})
-      </option>
+    <option value="{{ t['name'] }}" {% if tech==t['name'] %}selected{% endif %}>{{ t['name'] }} ({{ t['c'] }})</option>
     {% endfor %}
   </select>
-
-  <select name="status" class="bg-slate-900 border border-slate-700 rounded-xl px-4 py-2">
-    <option value="">— Estado —</option>
-    <option value="ok" {% if status=="ok" %}selected{% endif %}>ok</option>
-    <option value="error" {% if status=="error" %}selected{% endif %}>error</option>
-  </select>
-
-  <button class="md:col-span-3 bg-emerald-500 text-slate-950 rounded-xl px-4 py-2 font-semibold">
-    Filtrar
-  </button>
+  <button class="bg-cyan-500 hover:bg-cyan-400 text-slate-950 rounded-xl px-4 py-2 font-semibold transition">Filtrar</button>
 </form>
 
 <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
   {% for s in shops %}
-    <a href="/shop/{{ s['id'] }}" class="block bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden hover:border-slate-600 transition">
-      <div class="h-44 bg-slate-800">
-        {% if s['screenshot'] %}
-          <img src="/static/{{ s['screenshot'] }}" class="w-full h-44 object-cover" />
-        {% else %}
-          <div class="w-full h-44 flex items-center justify-center text-slate-400">Sin captura</div>
+  {% set rl = s['risk_level'] or 'unknown' %}
+  {% set ext = s['external_risk'] or 'unknown' %}
+  <a href="/shop/{{ s['id'] }}" class="block bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden hover:border-slate-600 transition">
+    <div class="h-40 bg-slate-800 relative">
+      {% if s['screenshot'] %}
+        <img src="/static/{{ s['screenshot'] }}" class="w-full h-40 object-cover" loading="lazy"/>
+      {% else %}
+        <div class="w-full h-40 flex items-center justify-center text-slate-500 text-sm">Sin captura</div>
+      {% endif %}
+      <div class="absolute top-2 right-2 flex gap-1">
+        <span class="badge risk-{{ rl }}">{{ rl.upper() }}</span>
+        {% if ext != 'unknown' and ext != 'clean' %}
+        <span class="badge risk-{{ 'critical' if ext=='malicious' else 'high' }}">EXT</span>
         {% endif %}
       </div>
-      <div class="p-4">
-        <div class="text-sm text-slate-400">{{ s['domain'] }}</div>
-        <div class="font-semibold truncate">{{ s['title'] or s['url'] }}</div>
-        <div class="text-xs text-slate-500 mt-2">
-          {{ s['detected_at'] }} •
-          <span class="{% if s['status']=='ok' %}text-emerald-400{% else %}text-rose-400{% endif %}">
-            {{ s['status'] }}
-          </span>
-        </div>
+    </div>
+    <div class="p-4">
+      <div class="text-xs text-slate-500 truncate">{{ s['domain'] }}</div>
+      <div class="font-semibold truncate mt-0.5">{{ s['title'] or s['url'] }}</div>
+      <div class="flex items-center gap-3 mt-2 text-xs text-slate-400">
+        <span>Score: <span class="{% if s['risk_score']>=0.7 %}text-red-400{% elif s['risk_score']>=0.3 %}text-orange-400{% else %}text-green-400{% endif %} font-semibold">{{ '%.2f'|format(s['risk_score'] or 0) }}</span></span>
+        {% if s['scan_count'] and s['scan_count']>1 %}<span>×{{ s['scan_count'] }}</span>{% endif %}
+        {% if s['language'] %}<span class="uppercase">{{ s['language'] }}</span>{% endif %}
       </div>
-    </a>
+      <div class="text-xs text-slate-600 mt-2">{{ s['detected_at'] }} · <span class="{% if s['status']=='ok' %}text-emerald-500{% else %}text-rose-500{% endif %}">{{ s['status'] }}</span></div>
+    </div>
+  </a>
   {% endfor %}
 </div>
-
+{% if not shops %}<div class="text-center text-slate-500 py-16">Sin resultados.</div>{% endif %}
 {% endblock %}

@@ -1,44 +1,202 @@
 {% extends "layout.html" %}
 {% block content %}
+{% set rl = shop['risk_level'] or 'unknown' %}
+{% set ext = shop['external_risk'] or 'unknown' %}
+
+<div class="mb-4 flex items-center gap-3 flex-wrap">
+  <a href="/" class="text-sm text-slate-400 hover:text-white">← Volver</a>
+  <span class="badge risk-{{ rl }}">LOCAL: {{ rl.upper() }}</span>
+  <span class="badge {% if ext=='malicious' %}risk-critical{% elif ext=='suspicious' %}risk-high{% else %}risk-clean{% endif %}">
+    EXT: {{ ext.upper() }}
+  </span>
+  <span class="text-sm text-slate-400">Score: <strong>{{ '%.3f'|format(shop['risk_score'] or 0) }}</strong></span>
+  {% for tag in tags %}
+    <span class="bg-slate-800 border border-slate-700 rounded-full px-2 py-0.5 text-xs text-slate-300">{{ tag }}</span>
+  {% endfor %}
+</div>
 
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-  <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
-    {% if screenshots and screenshots[0]['path'] %}
-      <img src="/static/{{ screenshots[0]['path'] }}" class="w-full object-cover max-h-[520px]" />
-    {% else %}
-      <div class="h-80 flex items-center justify-center text-slate-400">Sin captura</div>
-    {% endif %}
-    <div class="p-4">
-      <div class="text-sm text-slate-400">{{ shop['domain'] }}</div>
-      <div class="text-xl font-semibold">{{ shop['title'] or shop['url'] }}</div>
-      <div class="mt-2 text-sm">
-        <a class="text-emerald-400 hover:underline" href="{{ shop['url'] }}" target="_blank">{{ shop['url'] }}</a>
+
+  <!-- COL IZQUIERDA: Screenshot + Info + Keywords + Links + Wallets -->
+  <div class="lg:col-span-2 space-y-4">
+
+    <!-- Screenshot -->
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+      {% if screenshots and screenshots[0]['path'] %}
+        <img src="/static/{{ screenshots[0]['path'] }}" class="w-full object-cover max-h-[440px]"/>
+      {% else %}
+        <div class="h-48 flex items-center justify-center text-slate-500">Sin captura</div>
+      {% endif %}
+      <div class="p-4">
+        <div class="text-sm text-slate-400">{{ shop['domain'] }}</div>
+        <div class="text-xl font-semibold mt-1">{{ shop['title'] or shop['url'] }}</div>
+        <div class="mt-2">
+          <a href="{{ shop['url'] }}" target="_blank" class="text-cyan-400 hover:underline text-sm break-all">{{ shop['url'] }}</a>
+        </div>
+        <div class="mt-3 grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-slate-500">
+          <div>Estado: <span class="{% if shop['status']=='ok' %}text-emerald-400{% else %}text-rose-400{% endif %}">{{ shop['status'] }}</span></div>
+          <div>Idioma: {{ shop['language'] or '-' }}</div>
+          <div>Scans: {{ shop['scan_count'] or 1 }}</div>
+          <div>Hash: <code class="text-slate-400">{{ shop['content_hash'] or '-' }}</code></div>
+          <div class="col-span-2">Detectado: {{ shop['detected_at'] }}</div>
+          <div class="col-span-2">Último: {{ shop['last_scanned'] }}</div>
+        </div>
       </div>
-      {% if shop['notes'] %}
-        <div class="mt-3 text-sm text-slate-400">{{ shop['notes'] }}</div>
+    </div>
+
+    <!-- THREAT INTEL EXTERNA -->
+    {% if threat_intel %}
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+      <div class="font-semibold mb-3 text-purple-400">🌐 Threat Intelligence Externa</div>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+        <div class="bg-slate-800 rounded-xl p-3 text-center">
+          <div class="text-2xl font-bold text-red-400">{{ threat_intel.get('vt_malicious',0) }}</div>
+          <div class="text-xs text-slate-400">VT Malicious</div>
+        </div>
+        <div class="bg-slate-800 rounded-xl p-3 text-center">
+          <div class="text-2xl font-bold text-orange-400">{{ threat_intel.get('vt_suspicious',0) }}</div>
+          <div class="text-xs text-slate-400">VT Suspicious</div>
+        </div>
+        <div class="bg-slate-800 rounded-xl p-3 text-center">
+          <div class="text-2xl font-bold {% if threat_intel.get('uh_found') %}text-red-400{% else %}text-green-400{% endif %}">
+            {{ 'YES' if threat_intel.get('uh_found') else 'NO' }}
+          </div>
+          <div class="text-xs text-slate-400">URLhaus Found</div>
+        </div>
+        <div class="bg-slate-800 rounded-xl p-3 text-center">
+          <div class="text-sm font-bold">{{ threat_intel.get('uh_status','-') or '-' }}</div>
+          <div class="text-xs text-slate-400">URLhaus Status</div>
+        </div>
+      </div>
+      {% if threat_intel.get('uh_threat') %}
+      <div class="mt-3 text-xs text-red-400">URLhaus threat: {{ threat_intel['uh_threat'] }}</div>
+      {% endif %}
+      {% if threat_intel.get('checked_at') %}
+      <div class="text-xs text-slate-600 mt-2">Verificado: {{ threat_intel['checked_at'] }}</div>
       {% endif %}
     </div>
+    {% endif %}
+
+    <!-- KEYWORDS DE AMENAZA -->
+    {% if keywords %}
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+      <div class="font-semibold mb-3 text-red-400">⚠ Indicadores de amenaza ({{ keywords|length }})</div>
+      <div class="space-y-1 max-h-72 overflow-auto">
+        {% for k in keywords %}
+        <div class="flex items-center gap-3 border border-slate-800 rounded-xl px-3 py-2">
+          <span class="badge risk-{{ k['severity'] }}">{{ k['severity'] }}</span>
+          <div class="flex-1">
+            <span class="text-sm font-mono font-medium">{{ k['keyword'] }}</span>
+            <span class="text-xs text-slate-500 ml-2">{{ k['category'] }}</span>
+          </div>
+          <span class="text-xs text-slate-500">×{{ k['count'] }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- WALLETS CRYPTO -->
+    {% if wallets %}
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+      <div class="font-semibold mb-3 text-yellow-400">₿ Wallets Crypto ({{ wallets|length }})</div>
+      {% set explorers = {"BTC":"https://mempool.space/address/","XMR":"https://xmrchain.net/search?value=","ETH":"https://etherscan.io/address/","LTC":"https://litecoinspace.org/address/"} %}
+      <div class="space-y-1 max-h-60 overflow-auto">
+        {% for w in wallets %}
+        <div class="flex items-center gap-3 border border-slate-800 rounded-xl px-3 py-2">
+          <span class="text-cyan-400 font-bold text-xs w-10">{{ w['coin'] }}</span>
+          <code class="text-xs text-slate-300 flex-1 truncate">{{ w['address'] }}</code>
+          <span class="text-xs text-slate-500">{{ w['addr_type'] }}</span>
+          {% if w['coin'] in explorers %}
+          <a href="{{ explorers[w['coin']] }}{{ w['address'] }}" target="_blank"
+             class="text-xs text-slate-400 hover:text-cyan-400">→</a>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- LINKS DESCUBIERTOS -->
+    {% if links %}
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+      <div class="font-semibold mb-3 text-cyan-400">🔗 Links .onion descubiertos ({{ links|length }})</div>
+      <div class="space-y-1 max-h-52 overflow-auto text-xs font-mono">
+        {% for l in links %}
+        <div class="flex items-center gap-2 border border-slate-800 rounded-lg px-3 py-1.5">
+          <span class="{% if l['scanned'] %}text-green-400{% else %}text-yellow-400{% endif %}">
+            {% if l['scanned'] %}✓{% else %}⏳{% endif %}
+          </span>
+          <span class="text-slate-300 truncate">{{ l['url'] }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- ALERTAS -->
+    {% if alerts %}
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+      <div class="font-semibold mb-3 text-orange-400">⚡ Alertas enviadas ({{ alerts|length }})</div>
+      <div class="space-y-1 text-xs">
+        {% for a in alerts %}
+        <div class="flex items-center gap-3 border border-slate-800 rounded-lg px-3 py-2">
+          <span class="{% if a['sent'] %}text-green-400{% else %}text-red-400{% endif %}">
+            {% if a['sent'] %}✓{% else %}✗{% endif %}
+          </span>
+          <span class="text-slate-400">{{ a['channel'] }}</span>
+          <span class="badge risk-{{ a['risk_level'] }}">{{ a['risk_level'] }}</span>
+          <span class="text-slate-600 flex-1">{{ a['sent_at'] }}</span>
+          {% if a['reason'] %}<span class="text-red-400 truncate">{{ a['reason'][:40] }}</span>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
   </div>
 
-  <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-    <div class="font-semibold mb-3">Tecnologías detectadas</div>
-    <div class="space-y-2 max-h-[520px] overflow-auto pr-1">
-      {% for t in tech %}
+  <!-- SIDEBAR: Tech + Screenshots + OCR -->
+  <div class="space-y-4">
+
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+      <div class="font-semibold mb-3">Tecnologías ({{ tech|length }})</div>
+      <div class="space-y-2 max-h-80 overflow-auto">
+        {% for t in tech %}
         <div class="flex items-center justify-between gap-2 border border-slate-800 rounded-xl px-3 py-2">
           <div>
             <div class="text-sm font-medium">{{ t['name'] }}</div>
-            <div class="text-xs text-slate-400">{{ t['category'] }} • {{ t['source'] }}</div>
+            <div class="text-xs text-slate-400">{{ t['category'] }} · {{ t['source'] }}</div>
           </div>
-          <div class="text-xs text-slate-400">
-            {{ "%.0f"|format((t['confidence'] or 0)*100) }}%
-          </div>
+          <div class="text-xs text-slate-400">{{ '%.0f'|format((t['confidence'] or 0)*100) }}%</div>
         </div>
-      {% endfor %}
-      {% if tech|length == 0 %}
-        <div class="text-sm text-slate-400">No se detectaron tecnologías.</div>
-      {% endif %}
+        {% endfor %}
+        {% if not tech %}<div class="text-sm text-slate-500">No detectadas.</div>{% endif %}
+      </div>
     </div>
+
+    <!-- OCR TEXT -->
+    {% if screenshots and screenshots[0]['ocr_text'] %}
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+      <div class="font-semibold mb-3 text-green-400">🔤 Texto OCR extraído</div>
+      <pre class="text-xs text-slate-400 whitespace-pre-wrap max-h-72 overflow-auto bg-slate-800 rounded-xl p-3">{{ screenshots[0]['ocr_text'][:2000] }}</pre>
+    </div>
+    {% endif %}
+
+    {% if screenshots|length > 1 %}
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+      <div class="font-semibold mb-3 text-sm">Historial capturas</div>
+      <div class="space-y-1 max-h-48 overflow-auto">
+        {% for s in screenshots %}
+        <a href="/static/{{ s['path'] }}" target="_blank"
+           class="block text-xs text-cyan-400 hover:underline truncate">
+          {{ s['created_at'] }}
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
   </div>
 </div>
-
 {% endblock %}

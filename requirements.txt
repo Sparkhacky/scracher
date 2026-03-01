@@ -1,5 +1,22 @@
+# SCRACHER v3 — Requirements
+# Core
 fastapi>=0.110
 uvicorn[standard]>=0.27
 jinja2>=3.1
 requests[socks]>=2.31
 playwright>=1.41
+python-dotenv>=1.0
+
+# Threat Intel APIs
+# (requests ya instalado — se usa para VT y URLhaus)
+
+# Crypto wallet extraction
+# (stdlib re — sin dependencias extra)
+
+# OCR (OPCIONAL — instalar manualmente si se necesita)
+# pip install pytesseract Pillow
+# sudo apt install tesseract-ocr tesseract-ocr-spa tesseract-ocr-rus
+
+# Scheduler
+apscheduler>=3.10
+sqlalchemy>=2.0

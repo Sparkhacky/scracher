@@ -1,0 +1,45 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<div class="mb-4 flex items-center justify-between">
+  <h2 class="text-xl font-semibold text-cyan-400">🔗 Links .onion Descubiertos</h2>
+  <div class="flex gap-2 text-sm">
+    <a href="/discovered" class="{% if not scanned %}text-cyan-400{% else %}text-slate-400{% endif %} hover:text-white">Todos</a>
+    <a href="/discovered?scanned=0" class="{% if scanned=='0' %}text-yellow-400{% else %}text-slate-400{% endif %} hover:text-white">Pendientes</a>
+    <a href="/discovered?scanned=1" class="{% if scanned=='1' %}text-green-400{% else %}text-slate-400{% endif %} hover:text-white">Escaneados</a>
+  </div>
+</div>
+
+<div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-slate-800 text-slate-400 text-xs uppercase">
+      <tr>
+        <th class="px-4 py-3 text-left">Estado</th>
+        <th class="px-4 py-3 text-left">URL .onion</th>
+        <th class="px-4 py-3 text-left">Dominio</th>
+        <th class="px-4 py-3 text-left">Descubierto</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-slate-800">
+      {% for l in links %}
+      <tr class="hover:bg-slate-800 transition">
+        <td class="px-4 py-3">
+          {% if l['scanned'] %}
+            <span class="text-green-400 text-xs font-semibold">✓ Escaneado</span>
+          {% else %}
+            <span class="text-yellow-400 text-xs font-semibold">⏳ Pendiente</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-3 font-mono text-xs text-slate-300 max-w-sm truncate">{{ l['url'] }}</td>
+        <td class="px-4 py-3 text-xs text-slate-400">{{ l['domain'] }}</td>
+        <td class="px-4 py-3 text-xs text-slate-500">{{ l['discovered_at'] }}</td>
+      </tr>
+      {% endfor %}
+      {% if not links %}
+      <tr><td colspan="4" class="px-4 py-8 text-center text-slate-500">No se encontraron links.</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}
