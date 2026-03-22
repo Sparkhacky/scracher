@@ -1,0 +1,81 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<div class="mb-4 flex items-center justify-between flex-wrap gap-3">
+  <h2 class="text-xl font-semibold text-cyan-400">₿ Wallets Crypto Detectadas</h2>
+  <div class="text-sm text-slate-400">
+    Total: <strong class="text-white">{{ stats.wallets_total }}</strong>
+    {% for c in coins %}
+      · <span class="text-cyan-400">{{ c.coin }}</span>: {{ c.c }}
+    {% endfor %}
+  </div>
+</div>
+
+<!-- FILTROS -->
+<form class="flex gap-3 mb-6 flex-wrap">
+  <input name="q" value="{{ q }}" placeholder="Buscar dirección o dominio..."
+    class="bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 outline-none flex-1"/>
+  <select name="coin" class="bg-slate-900 border border-slate-700 rounded-xl px-4 py-2">
+    <option value="">— Todas las monedas —</option>
+    {% for c in coins %}
+    <option value="{{ c.coin }}" {% if selected_coin==c.coin %}selected{% endif %}>
+      {{ c.coin }} ({{ c.c }})
+    </option>
+    {% endfor %}
+  </select>
+  <button class="bg-cyan-500 hover:bg-cyan-400 text-slate-950 rounded-xl px-5 py-2 font-semibold transition">Filtrar</button>
+</form>
+
+<div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-slate-800 text-slate-400 text-xs uppercase">
+      <tr>
+        <th class="px-4 py-3 text-left w-16">Coin</th>
+        <th class="px-4 py-3 text-left">Dirección</th>
+        <th class="px-4 py-3 text-left w-24">Tipo</th>
+        <th class="px-4 py-3 text-left">Sitio</th>
+        <th class="px-4 py-3 text-left w-28">Riesgo</th>
+        <th class="px-4 py-3 text-left w-24">Explorer</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-slate-800">
+      {% for r in rows %}
+      {% set rl = r['risk_level'] or 'unknown' %}
+      <tr class="hover:bg-slate-800 transition">
+        <td class="px-4 py-3 font-bold text-cyan-400">{{ r['coin'] }}</td>
+        <td class="px-4 py-3 font-mono text-xs text-slate-200 max-w-xs break-all">{{ r['address'] }}</td>
+        <td class="px-4 py-3 text-xs text-slate-500">{{ r['addr_type'] }}</td>
+        <td class="px-4 py-3">
+          <a href="/shop/{{ r['shop_id'] }}" class="text-cyan-400 hover:underline text-xs">
+            {{ r['domain'] or r['shop_id'] }}
+          </a>
+          {% if r['title'] %}
+            <div class="text-xs text-slate-500 truncate max-w-xs">{{ r['title'] }}</div>
+          {% endif %}
+        </td>
+        <td class="px-4 py-3">
+          <span class="badge risk-{{ rl }}">{{ rl.upper() }}</span>
+        </td>
+        <td class="px-4 py-3 text-xs">
+          {% set explorers = {"BTC":"https://mempool.space/address/","XMR":"https://xmrchain.net/search?value=","ETH":"https://etherscan.io/address/","LTC":"https://litecoinspace.org/address/"} %}
+          {% if r['coin'] in explorers %}
+          <a href="{{ explorers[r['coin']] }}{{ r['address'] }}"
+             target="_blank" class="text-slate-400 hover:text-cyan-400">
+            Ver →
+          </a>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+      {% if not rows %}
+      <tr><td colspan="6" class="px-4 py-8 text-center text-slate-500">No se encontraron wallets.</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+
+<p class="text-xs text-slate-600 mt-4">
+  ⚠️ Las direcciones crypto son referencias investigativas. Verifica en los block explorers correspondientes.
+</p>
+
+{% endblock %}

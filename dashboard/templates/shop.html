@@ -1,0 +1,282 @@
+{% extends "layout.html" %}
+{% block content %}
+
+{% set rl = shop['risk_level'] or 'unknown' %}
+
+<!-- Header -->
+<div class="flex items-start justify-between mb-6 gap-4">
+  <div>
+    <div class="flex items-center gap-3 mb-2">
+      <span class="badge risk-{{ rl }} text-sm px-3 py-1">{{ rl.upper() }}</span>
+      {% if shop['external_risk'] and shop['external_risk'] not in ('unknown','clean') %}
+      <span class="badge risk-critical">EXT: {{ shop['external_risk'].upper() }}</span>
+      {% endif %}
+      {% for tag in tags %}<span class="badge risk-unknown">{{ tag }}</span>{% endfor %}
+    </div>
+    <h1 class="text-lg font-bold text-white mb-1">{{ shop['title'] or shop['domain'] or shop['url'] }}</h1>
+    <a href="{{ shop['url'] }}" class="text-cyan-400 font-mono text-xs break-all hover:underline">{{ shop['url'] }}</a>
+  </div>
+  <div class="flex gap-2 shrink-0">
+    <button onclick="rescan()" class="btn btn-cyan">↻ Re-escanear</button>
+    <button onclick="deleteSite()" class="btn btn-red">🗑 Eliminar</button>
+    <a href="/" class="btn btn-gray">← Volver</a>
+  </div>
+</div>
+
+<!-- Stats row -->
+<div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+  <div class="stat-box text-center">
+    <div class="text-xs text-slate-500">SCORE</div>
+    <div class="text-2xl font-black {% if shop['risk_score']>=0.7 %}text-red-400{% elif shop['risk_score']>=0.3 %}text-yellow-400{% else %}text-green-400{% endif %}">{{ '%.2f'|format(shop['risk_score'] or 0) }}</div>
+  </div>
+  <div class="stat-box text-center">
+    <div class="text-xs text-slate-500">KEYWORDS</div>
+    <div class="text-2xl font-black text-red-400">{{ keywords|length }}</div>
+  </div>
+  <div class="stat-box text-center">
+    <div class="text-xs text-slate-500">TECNOLOGÍAS</div>
+    <div class="text-2xl font-black text-cyan-400">{{ tech|length }}</div>
+  </div>
+  <div class="stat-box text-center">
+    <div class="text-xs text-slate-500">WALLETS</div>
+    <div class="text-2xl font-black text-yellow-400">{{ wallets|length }}</div>
+  </div>
+  <div class="stat-box text-center">
+    <div class="text-xs text-slate-500">LINKS</div>
+    <div class="text-2xl font-black text-blue-400">{{ links|length }}</div>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+
+  <!-- LEFT: screenshot + threat intel -->
+  <div class="xl:col-span-1 space-y-4">
+
+    {% if screenshots %}
+    <div class="card overflow-hidden">
+      <img src="/static/{{ screenshots[0]['path'] }}"
+           style="width:100%;display:block;object-fit:cover;object-position:top;"
+           alt="screenshot"/>
+      <div class="p-3 text-xs text-slate-500">{{ screenshots[0]['created_at'] }}</div>
+    </div>
+    {% endif %}
+
+    <!-- Threat intel -->
+    {% if threat_intel %}
+    <div class="card p-4">
+      <div class="text-xs text-slate-500 uppercase tracking-wider mb-3">Threat Intel</div>
+      <div class="space-y-2 text-sm">
+        {% if threat_intel.vt_malicious is not none %}
+        <div class="flex justify-between">
+          <span class="text-slate-400">VT malicious</span>
+          <span class="{% if threat_intel.vt_malicious > 0 %}text-red-400 font-bold{% else %}text-green-400{% endif %}">{{ threat_intel.vt_malicious }}</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-slate-400">VT suspicious</span>
+          <span class="{% if threat_intel.vt_suspicious > 0 %}text-yellow-400{% else %}text-green-400{% endif %}">{{ threat_intel.vt_suspicious }}</span>
+        </div>
+        {% endif %}
+        {% if threat_intel.uh_found %}
+        <div class="flex justify-between">
+          <span class="text-slate-400">URLhaus</span>
+          <span class="text-red-400 font-bold">{{ threat_intel.uh_status or 'encontrado' }}</span>
+        </div>
+        {% endif %}
+        <div class="flex justify-between">
+          <span class="text-slate-400">Riesgo externo</span>
+          <span class="badge risk-{% if threat_intel.external_risk=='malicious' %}critical{% elif threat_intel.external_risk=='suspicious' %}high{% else %}clean{% endif %}">{{ (threat_intel.external_risk or 'unknown').upper() }}</span>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Site meta -->
+    <div class="card p-4 text-sm space-y-2">
+      <div class="text-xs text-slate-500 uppercase tracking-wider mb-3">Metadata</div>
+      {% if shop['domain'] %}
+      <div class="flex justify-between gap-2"><span class="text-slate-400">Dominio</span><span class="font-mono text-xs text-right break-all">{{ shop['domain'] }}</span></div>
+      {% endif %}
+      {% if shop['language'] %}
+      <div class="flex justify-between"><span class="text-slate-400">Idioma</span><span class="uppercase">{{ shop['language'] }}</span></div>
+      {% endif %}
+      <div class="flex justify-between"><span class="text-slate-400">Status</span><span class="{% if shop['status']=='ok' %}text-green-400{% else %}text-red-400{% endif %}">{{ shop['status'] }}</span></div>
+      <div class="flex justify-between"><span class="text-slate-400">Escaneos</span><span>{{ shop['scan_count'] or 1 }}</span></div>
+      <div class="flex justify-between"><span class="text-slate-400">Detectado</span><span class="text-xs text-slate-400">{{ shop['detected_at'] }}</span></div>
+    </div>
+  </div>
+
+  <!-- RIGHT: tabs con datos -->
+  <div class="xl:col-span-2">
+
+    <!-- Tab buttons -->
+    <div class="flex gap-2 mb-4 flex-wrap" id="tabs">
+      {% for tid,tlabel in [('tab-tech','Tecnologías'),('tab-keywords','Keywords'),('tab-wallets','Wallets'),('tab-links','Links'),('tab-ocr','OCR'),('tab-alerts','Alertas')] %}
+      <button onclick="showTab('{{ tid }}')" id="btn-{{ tid }}"
+        class="btn btn-gray tab-btn">{{ tlabel }}</button>
+      {% endfor %}
+    </div>
+
+    <!-- TECNOLOGÍAS con versiones -->
+    <div id="tab-tech" class="tab-panel card overflow-x-auto">
+      {% if tech %}
+      <table>
+        <thead><tr><th>Categoría</th><th>Tecnología</th><th>Versión</th><th>Confianza</th><th>Fuente</th></tr></thead>
+        <tbody>
+        {% for t in tech %}
+        <tr>
+          <td><span class="badge risk-unknown text-xs">{{ t['category'] }}</span></td>
+          <td class="font-semibold text-white">{{ t['name'] }}</td>
+          <td>
+            {% if t['version'] %}
+            <span class="font-mono text-cyan-400 text-xs bg-cyan-950 px-2 py-0.5 rounded">{{ t['version'] }}</span>
+            {% else %}
+            <span class="text-slate-600 text-xs">—</span>
+            {% endif %}
+          </td>
+          <td>
+            <div class="flex items-center gap-2">
+              <div class="w-20 bg-slate-800 rounded-full h-1.5">
+                <div class="bg-cyan-500 h-1.5 rounded-full" style="width:{{ ((t['confidence'] or 0)*100)|int }}%"></div>
+              </div>
+              <span class="text-xs text-slate-400">{{ ((t['confidence'] or 0)*100)|int }}%</span>
+            </div>
+          </td>
+          <td class="text-slate-500 text-xs">{{ t['source'] }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}<div class="p-6 text-slate-500 text-center text-sm">Sin tecnologías detectadas</div>{% endif %}
+    </div>
+
+    <!-- KEYWORDS -->
+    <div id="tab-keywords" class="tab-panel hidden card overflow-x-auto">
+      {% if keywords %}
+      <table>
+        <thead><tr><th>Keyword</th><th>Categoría</th><th>Severidad</th><th>Ocurrencias</th></tr></thead>
+        <tbody>
+        {% for k in keywords %}
+        <tr>
+          <td class="font-mono text-sm">{{ k['keyword'] }}</td>
+          <td><span class="badge risk-unknown text-xs">{{ k['category'] }}</span></td>
+          <td><span class="badge risk-{{ k['severity'] or 'unknown' }} text-xs">{{ (k['severity'] or 'unknown').upper() }}</span></td>
+          <td class="text-slate-300">{{ k['count'] }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}<div class="p-6 text-slate-500 text-center text-sm">Sin keywords de amenaza</div>{% endif %}
+    </div>
+
+    <!-- WALLETS -->
+    <div id="tab-wallets" class="tab-panel hidden card overflow-x-auto">
+      {% if wallets %}
+      <table>
+        <thead><tr><th>Moneda</th><th>Dirección</th><th>Tipo</th><th>Explorer</th></tr></thead>
+        <tbody>
+        {% for w in wallets %}
+        {% set coin = w['coin'] %}
+        {% set addr = w['address'] %}
+        {% if coin=='BTC' %}{% set url='https://mempool.space/address/'+addr %}
+        {% elif coin=='XMR' %}{% set url='https://xmrchain.net/search?value='+addr %}
+        {% elif coin=='ETH' %}{% set url='https://etherscan.io/address/'+addr %}
+        {% elif coin=='LTC' %}{% set url='https://litecoinspace.org/address/'+addr %}
+        {% else %}{% set url='' %}{% endif %}
+        <tr>
+          <td><span class="font-bold text-yellow-400">{{ coin }}</span></td>
+          <td class="font-mono text-xs text-slate-300 max-w-xs" style="word-break:break-all;">{{ addr }}</td>
+          <td class="text-slate-500 text-xs">{{ w['addr_type'] or '—' }}</td>
+          <td>{% if url %}<a href="{{ url }}" target="_blank" class="text-cyan-400 hover:underline text-xs">Explorer →</a>{% endif %}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}<div class="p-6 text-slate-500 text-center text-sm">Sin wallets detectadas</div>{% endif %}
+    </div>
+
+    <!-- LINKS -->
+    <div id="tab-links" class="tab-panel hidden card overflow-x-auto">
+      {% if links %}
+      <table>
+        <thead><tr><th>Dominio</th><th>URL</th><th>Escaneado</th><th>Fecha</th></tr></thead>
+        <tbody>
+        {% for l in links %}
+        <tr>
+          <td class="font-mono text-xs text-slate-300">{{ l['domain'] or '—' }}</td>
+          <td class="font-mono text-xs text-slate-500 max-w-xs truncate" style="max-width:200px;" title="{{ l['url'] }}">{{ l['url'] }}</td>
+          <td><span class="badge {% if l['scanned'] %}risk-low{% else %}risk-unknown{% endif %} text-xs">{{ 'SÍ' if l['scanned'] else 'NO' }}</span></td>
+          <td class="text-xs text-slate-500">{{ l['discovered_at'] }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}<div class="p-6 text-slate-500 text-center text-sm">Sin links descubiertos</div>{% endif %}
+    </div>
+
+    <!-- OCR -->
+    <div id="tab-ocr" class="tab-panel hidden card p-4">
+      {% if screenshots and screenshots[0]['ocr_text'] %}
+      <div class="text-xs text-slate-500 uppercase tracking-wider mb-3">Texto extraído por OCR</div>
+      <pre class="text-xs text-slate-300 whitespace-pre-wrap font-mono leading-relaxed">{{ screenshots[0]['ocr_text'] }}</pre>
+      {% else %}
+      <div class="text-slate-500 text-center py-8 text-sm">Sin texto OCR disponible</div>
+      {% endif %}
+    </div>
+
+    <!-- ALERTAS -->
+    <div id="tab-alerts" class="tab-panel hidden card overflow-x-auto">
+      {% if alerts %}
+      <table>
+        <thead><tr><th>Canal</th><th>Riesgo</th><th>Enviada</th><th>Motivo</th><th>Fecha</th></tr></thead>
+        <tbody>
+        {% for a in alerts %}
+        <tr>
+          <td class="font-semibold">{{ a['channel'] }}</td>
+          <td><span class="badge risk-{{ a['risk_level'] or 'unknown' }}">{{ (a['risk_level'] or '?').upper() }}</span></td>
+          <td><span class="badge {% if a['sent'] %}risk-low{% else %}risk-critical{% endif %}">{{ 'SÍ' if a['sent'] else 'NO' }}</span></td>
+          <td class="text-xs text-slate-400">{{ a['reason'] or '—' }}</td>
+          <td class="text-xs text-slate-500">{{ a['sent_at'] }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}<div class="p-6 text-slate-500 text-center text-sm">Sin alertas registradas</div>{% endif %}
+    </div>
+
+  </div>
+</div>
+
+<script>
+function showTab(id){
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.classList.remove('btn-cyan'); b.classList.add('btn-gray');
+  });
+  document.getElementById(id).classList.remove('hidden');
+  document.getElementById('btn-'+id).classList.remove('btn-gray');
+  document.getElementById('btn-'+id).classList.add('btn-cyan');
+}
+showTab('tab-tech');
+
+function deleteSite(){
+  if(!confirm('¿Eliminar este sitio de la base de datos?')) return;
+  fetch('/shop/{{ shop["id"] }}/delete', {method:'POST'})
+    .then(()=>{ window.location.href='/'; });
+}
+
+function rescan(){
+  // Redirige a la página de escaneo con la URL pre-rellenada
+  const url = encodeURIComponent('{{ shop["url"] }}');
+  window.location.href = '/scan#rescan=' + url;
+}
+
+// Auto-fill rescan URL si viene del botón
+window.addEventListener('load', () => {
+  const hash = window.location.hash;
+  if(hash.startsWith('#rescan=')){
+    const url = decodeURIComponent(hash.replace('#rescan=',''));
+    document.getElementById('urls-input') && (document.getElementById('urls-input').value = url);
+  }
+});
+</script>
+{% endblock %}

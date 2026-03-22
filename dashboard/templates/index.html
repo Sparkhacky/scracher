@@ -1,0 +1,90 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<!-- Stats bar -->
+<div class="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
+  {% for label,key,color in [('TOTAL','total','text-white'),('CRITICAL','critical','text-red-400'),('HIGH','high','text-yellow-400'),('MEDIUM','medium','text-yellow-600'),('LOW','low','text-green-400'),('ERRORS','errors','text-slate-500')] %}
+  <div class="stat-box text-center">
+    <div class="text-xs text-slate-500 uppercase tracking-wider">{{ label }}</div>
+    <div class="text-2xl font-black {{ color }}">{{ stats[key] }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Top threats chips -->
+{% if stats.top_threats %}
+<div class="flex gap-2 flex-wrap mb-5">
+  {% for t in stats.top_threats %}
+  <span class="badge risk-unknown">{{ t.category }} <span class="text-cyan-400">{{ t.c }}</span></span>
+  {% endfor %}
+  {% for c in stats.top_coins %}
+  <span class="badge risk-medium">₿ {{ c.coin }} <span class="text-yellow-300">{{ c.c }}</span></span>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Filters -->
+<form class="flex flex-wrap gap-2 mb-6">
+  <input name="q" value="{{ q }}" placeholder="URL / dominio / título..." class="flex-1 min-w-48"/>
+  <select name="risk">
+    <option value="">— Riesgo —</option>
+    {% for v,l in [('critical','🔴 Critical'),('high','🟠 High'),('medium','🟡 Medium'),('low','🟢 Low'),('clean','⚪ Clean')] %}
+    <option value="{{ v }}" {% if risk==v %}selected{% endif %}>{{ l }}</option>
+    {% endfor %}
+  </select>
+  <select name="ext_risk">
+    <option value="">— Ext. risk —</option>
+    {% for v,l in [('malicious','🔴 Malicious'),('suspicious','🟠 Suspicious'),('clean','⚪ Clean')] %}
+    <option value="{{ v }}" {% if ext_risk==v %}selected{% endif %}>{{ l }}</option>
+    {% endfor %}
+  </select>
+  <select name="tech">
+    <option value="">— Tecnología —</option>
+    {% for t in techs %}<option value="{{ t['name'] }}" {% if tech==t['name'] %}selected{% endif %}>{{ t['name'] }} ({{ t['c'] }})</option>{% endfor %}
+  </select>
+  <button class="btn btn-cyan">Filtrar</button>
+  {% if q or risk or ext_risk or tech %}<a href="/" class="btn btn-gray">Limpiar</a>{% endif %}
+</form>
+
+<!-- Cards grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+{% for s in shops %}
+{% set rl = s['risk_level'] or 'unknown' %}
+<a href="/shop/{{ s['id'] }}" class="card block">
+  <!-- Screenshot thumbnail — altura fija con overflow hidden -->
+  <div style="height:150px;overflow:hidden;position:relative;background:#1e293b;">
+    {% if s['screenshot'] %}
+    <img src="/static/{{ s['screenshot'] }}" alt=""
+         style="width:100%;height:150px;object-fit:cover;object-position:top center;display:block;"/>
+    {% else %}
+    <div style="height:150px;display:flex;align-items:center;justify-content:center;color:#475569;font-size:.8rem;">sin captura</div>
+    {% endif %}
+    <!-- Risk badges sobre la imagen -->
+    <div style="position:absolute;top:8px;right:8px;display:flex;gap:4px;">
+      <span class="badge risk-{{ rl }}">{{ rl.upper() }}</span>
+      {% if s['external_risk'] and s['external_risk'] not in ('unknown','clean') %}
+      <span class="badge risk-critical">EXT</span>
+      {% endif %}
+    </div>
+  </div>
+  <div class="p-4">
+    <div class="text-xs text-slate-500 truncate mb-0.5">{{ s['domain'] or s['url'] }}</div>
+    <div class="font-semibold truncate text-sm">{{ s['title'] or '—' }}</div>
+    <div class="flex items-center gap-3 mt-2 text-xs text-slate-400">
+      <span>Score: <span class="{% if s['risk_score']>=0.7 %}text-red-400{% elif s['risk_score']>=0.3 %}text-yellow-400{% else %}text-green-400{% endif %} font-bold">{{ '%.2f'|format(s['risk_score'] or 0) }}</span></span>
+      {% if s['language'] %}<span class="uppercase text-slate-500">{{ s['language'] }}</span>{% endif %}
+      {% if s['scan_count'] and s['scan_count']>1 %}<span class="text-slate-600">×{{ s['scan_count'] }}</span>{% endif %}
+    </div>
+    <div class="text-xs text-slate-600 mt-1">{{ s['detected_at'] }}</div>
+  </div>
+</a>
+{% endfor %}
+</div>
+
+{% if not shops %}
+<div class="text-center text-slate-500 py-24">
+  <div class="text-4xl mb-3">🔍</div>
+  <div>Sin resultados. <a href="/scan" class="text-cyan-400">Escanear sitios</a></div>
+</div>
+{% endif %}
+{% endblock %}
